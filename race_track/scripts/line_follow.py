@@ -183,3 +183,57 @@ def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular
     
     # Publish the new twist message
     twist_pub.publish(new_twist)
+    
+def PID_linear(setpoint, input_value):
+    
+    # Define current twist message
+    current_twist = Twist()
+
+    # Define new twist message
+    new_twist = current_twist
+
+    # Start counting time now
+    current_time = rospy.Time.now()
+    
+    # Define last values
+    last_time = rospy.Duration(1/1000)
+    last_error = 0.0
+    
+    # Calculate time step
+    dt = (current_time - last_time).to_sec()
+    
+    # Calculate error between setpoint and input value
+    error = setpoint - input_value
+    
+    # Integral error
+    i_error = 0.0
+    i_error += error * dt
+    
+    # Derivative error
+    d_error = 0.0
+    d_error = error - last_error
+    
+    # PID gains
+    kp = 0.001
+    ki = 0.0000001
+    kd = 0.0
+    
+    # Output value
+    output = kp * error + ki * i_error + kd * d_error
+    
+    # define last error and last time
+    last_error = error
+    last_time = current_time
+    
+    return output	      
+      
+if __name__ == '__main__': 
+  
+  # Initialize node follower
+  rospy.init_node('follower')
+  
+  # Call the class and functions
+  follower = race_track()
+  
+  rospy.spin()
+  
