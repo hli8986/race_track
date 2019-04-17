@@ -34,7 +34,7 @@
   </include>
 
   <!-- Import node from scripts and rqt_plot-->
-  <node pkg="race_track" name="line_follow" type="line_follow.py" output="screen" />
+<!--  <node pkg="race_track" name="line_follow" type="line_follow.py" output="screen" />-->
   <node pkg="rqt_plot" name="rqt_plot" type="rqt_plot" output="screen" />
 
   <!-- Spawn Jackal -->

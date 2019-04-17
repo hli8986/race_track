@@ -8,11 +8,11 @@
 # Import preparation
 import rospy, cv2, cv_bridge
 import numpy as np
+import tf, time
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Twist, Point, Pose
 from nav_msgs.msg import Odometry
 from tf import transformations
-import tf
 from sensor_msgs.msg import LaserScan
 
 class race_track:
@@ -69,7 +69,7 @@ class race_track:
     # Initialize obstacle detecting state
     flag_wall = 0
     
-    # Update state based on range
+    # Update state based on range of 2.5 meters
     for i in forward_range:
 	    if i < 2.5:       
 		   flag_wall = 1
@@ -97,36 +97,41 @@ class race_track:
               linear_x = PID_linear(h_view, cy)
               
               # Call PID and send velocity message
-              PID_angular(w_view, cx, 0, linear_x, 0, 0)
+              PID_angular(w_view, cx, 0, linear_x, 0, 0, 0.00065)
               print "target acquired"
               
             else: # If color not detected, go forward
               
               linear_x = PID_linear(0.5, twist.linear.x) * 1000
-              PID_angular(0, 0, 1, linear_x, 0, 0)
+              PID_angular(0, 0, 1, linear_x, 0, 0, 0.00065)
               print "looking for target"
               
     else: # If obstacle detected   
     
-              # Decelerate with -0.2 on linear.x
-	      PID_angular(0, 0, 1, -0.2, 0, 0)
+              # Decelerate to stop
+              
+              linear_x1 = PID_linear(0, twist.linear.x) * 1000
+	      PID_angular(0, twist.angular.z, 1, linear_x1, 0, 0, 0.00065)
 	      
-	      if twist.linear.x <= 0: 
-	      
-	         # Stop the robot
-	         PID_angular(0, 0, 1, 0, 1, 0)
+	      if twist.linear.x <= 0: # If fully stopped
 	         
-		 for i in forward_range: # Recheck obstacle
-	           if  i<2.5: 
-	             # Turn
-                     PID_angular(0, 0, 1, 1, 1, 2)
-                     print "Turning"
+	        for i in forward_range: # Recheck obstacle
+	          if  i<2.5: 
+	            # Turn
+	            linear_x2 = PID_linear(0.5, twist.linear.x) * 1000
+                    PID_angular(4.0, twist.angular.z, 1, linear_x2, 0, 0, 0.1)
+                    rospy.sleep(0.01)
+                    print "Turning"
+                    
+              else: # If not fully stopped, stop the robot
+                linear_x3 = PID_linear(0, twist.linear.x) * 1000
+	        PID_angular(0, twist.angular.z, 1, linear_x3, 0, 0, 0.00065)
     
     # Show original image
     cv2.imshow("Viewed_image", image)
     cv2.waitKey(3)
     
-def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular_z):
+def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular_z, kp):
 
     # Publish to cmd_vel topic
     twist_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
@@ -159,12 +164,13 @@ def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular
     d_error = error - last_error
     
     # PID gains
-    kp = 0.00065
+#    kp = 0.00065
     ki = 0.00000001
     kd = 0.0
     
     # Output value
     output = kp * error + ki * i_error + kd * d_error
+    print output
     
     # define last error and last time
     last_error = error
@@ -173,11 +179,13 @@ def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular
     # Update twist message with output
     if a_constant == 0:
      new_twist.angular.z = current_twist.angular.z + output
+#     print new_twist.angular.z
     elif a_constant == 1:
      new_twist.angular.z = angular_z
     
     if l_constant == 0:
       new_twist.linear.x = current_twist.linear.x + linear_x
+#      print new_twist.linear.x
     elif l_constant == 1:
       new_twist.linear.x = linear_x
     
