@@ -125,3 +125,61 @@ class race_track:
     # Show original image
     cv2.imshow("Viewed_image", image)
     cv2.waitKey(3)
+    
+def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular_z):
+
+    # Publish to cmd_vel topic
+    twist_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
+    
+    # Define current twist message
+    current_twist = Twist()
+
+    # Define new twist message
+    new_twist = current_twist
+
+    # Start counting time now
+    current_time = rospy.Time.now()
+    
+    # Define last values
+    last_time = rospy.Duration(1/1000)
+    last_error = 0.0
+    
+    # Calculate time step
+    dt = (current_time - last_time).to_sec()
+    
+    # Calculate error between setpoint and input value
+    error = setpoint - input_value
+    
+    # Integral error
+    i_error = 0.0
+    i_error += error * dt
+    
+    # Derivative error
+    d_error = 0.0
+    d_error = error - last_error
+    
+    # PID gains
+    kp = 0.00065
+    ki = 0.00000001
+    kd = 0.0
+    
+    # Output value
+    output = kp * error + ki * i_error + kd * d_error
+    
+    # define last error and last time
+    last_error = error
+    last_time = current_time
+    
+    # Update twist message with output
+    if a_constant == 0:
+     new_twist.angular.z = current_twist.angular.z + output
+    elif a_constant == 1:
+     new_twist.angular.z = angular_z
+    
+    if l_constant == 0:
+      new_twist.linear.x = current_twist.linear.x + linear_x
+    elif l_constant == 1:
+      new_twist.linear.x = linear_x
+    
+    # Publish the new twist message
+    twist_pub.publish(new_twist)
