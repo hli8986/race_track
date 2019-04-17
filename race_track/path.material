@@ -1,0 +1,16 @@
+material path
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.5 0.5 0.5 1.0
+      
+      texture_unit
+      {
+        texture path.png
+        filtering trilinear
+      }
+    }
+  }
+}
