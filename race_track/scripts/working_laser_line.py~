@@ -1,0 +1,206 @@
+#!/usr/bin/env python
+
+import rospy, cv2, cv_bridge
+import numpy as np
+from sensor_msgs.msg import Image
+from geometry_msgs.msg import Twist, Point, Pose
+from nav_msgs.msg import Odometry
+from tf import transformations
+import tf
+from sensor_msgs.msg import LaserScan
+from math import atan2
+
+class race_track:
+  
+  def __init__(self):
+    self.linear_speed_upper_limit = 1
+    self.linear_speed_lower_limit = 0 
+    self.angular_speed_upper_limit = 0.75
+    self.bridge = cv_bridge.CvBridge()
+    
+    self.sub_odm = rospy.Subscriber("/odometry/filtered", Odometry, self.odom_callback)
+    self.sub = rospy.Subscriber("front/scan", LaserScan,self.laser_callback)
+    self.image_sub = rospy.Subscriber('front/image_raw', Image, self.callback)
+
+  def laser_callback(self,msg):
+    global forward_range
+    forward_range = msg.ranges[0:360]#[320:380]
+    
+  def odom_callback(self, msg):
+    global twist 
+    twist = msg.twist.twist
+     
+  def callback(self,data):
+    image = self.bridge.imgmsg_to_cv2(data,desired_encoding='bgr8')
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    lower_red = np.array([0, 70, 50])
+    upper_red = np.array([10, 255, 255])
+    mask = cv2.inRange(hsv, lower_red, upper_red)
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=2)
+    #print(3)
+
+    h_view, w_view, d_view = image.shape
+
+    contours, hierarchy = cv2.findContours(mask, 1, cv2.CHAIN_APPROX_NONE)
+
+    cx = 0
+    cy = 0
+
+    flag_wall = 0
+    flag_wall_dir = 0
+    current_vel = 0.3
+    for i in forward_range:
+	    if i < 2.5:       
+		   flag_wall = 1
+	    
+            if i > 3:
+		   flag_wall = 0 
+		       
+    if flag_wall == 0:
+
+#	    if M['m00'] > 0:
+            if len(contours) > 0:
+              c = max(contours, key=cv2.contourArea)
+      
+              # Get moments from the contour
+              M = cv2.moments(c)
+              
+	      cx = int(M['m10']/M['m00'])
+	      cy = int(M['m01']/M['m00'])
+	   
+              linear_x = PID_linear(h_view, cy)
+              PID_angular(w_view, cx, 0, linear_x, 0, 0)
+              print len(contours)
+              print "target acquired"
+              
+            else:
+              linear_x = PID_linear(0.5, twist.linear.x) * 1000
+              print linear_x
+              PID_angular(0, 0, 1, linear_x, 0, 0)
+              print "looking for target"
+    else:       
+	      PID_angular(0, 0, 1, -0.2, 0, 0)
+	      
+	      if twist.linear.x <= 0:
+	         PID_angular(0, 0, 1, 0, 1, 0)
+		 for i in forward_range:
+			     if  i<2.5:
+                                PID_angular(0, 0, 1, 1, 1, 2)
+                                print "Turning"
+        
+    cv2.imshow("window", image)
+    cv2.waitKey(3)
+
+
+def PID_angular(setpoint, input_value, l_constant, linear_x, a_constant, angular_z):
+
+    # Publish to cmd_vel topic
+    twist_pub = rospy.Publisher('cmd_vel', Twist, queue_size=1)
+    
+    # Define current twist message
+    current_twist = Twist()
+
+    # Define new twist message
+    new_twist = current_twist
+
+    # Start counting time now
+    current_time = rospy.Time.now()
+    
+    # Define last values
+    last_time = rospy.Duration(1/1000)
+    last_error = 0.0
+    
+    # Calculate time step
+    dt = (current_time - last_time).to_sec()
+    
+    # Calculate error between setpoint and input value
+    error = setpoint - input_value
+    
+    # Integral error
+    i_error = 0.0
+    i_error += error * dt
+    
+    # Derivative error
+    d_error = 0.0
+    d_error = error - last_error
+    
+    # PID gains
+    kp = 0.00065
+    ki = 0.00000001
+    kd = 0.0
+    
+    # Output value
+    output = kp * error + ki * i_error + kd * d_error
+#    print output
+    
+#    plt.plot(output)
+#    plt.show()
+    
+    # define last error and last time
+    last_error = error
+    last_time = current_time
+    
+    # Update twist message with output
+    if a_constant == 0:
+     new_twist.angular.z = current_twist.angular.z + output
+    elif a_constant == 1:
+     new_twist.angular.z = angular_z
+    
+    if l_constant == 0:
+      new_twist.linear.x = current_twist.linear.x + linear_x
+    elif l_constant == 1:
+      new_twist.linear.x = linear_x
+    
+    # Publish the new twist message
+    twist_pub.publish(new_twist)
+    
+def PID_linear(setpoint, input_value):
+    
+    # Define current twist message
+    current_twist = Twist()
+
+    # Define new twist message
+    new_twist = current_twist
+
+    # Start counting time now
+    current_time = rospy.Time.now()
+    
+    # Define last values
+    last_time = rospy.Duration(1/1000)
+    last_error = 0.0
+    
+    # Calculate time step
+    dt = (current_time - last_time).to_sec()
+    
+    # Calculate error between setpoint and input value
+    error = setpoint - input_value
+    
+    # Integral error
+    i_error = 0.0
+    i_error += error * dt
+    
+    # Derivative error
+    d_error = 0.0
+    d_error = error - last_error
+    
+    # PID gains
+    kp = 0.001
+    ki = 0.0000001
+    kd = 0.0
+    
+    # Output value
+    output = kp * error + ki * i_error + kd * d_error
+#    print output
+    
+    # define last error and last time
+    last_error = error
+    last_time = current_time
+    
+    return output	      
+      
+if __name__ == '__main__': 
+  rospy.init_node('follower')
+  follower = race_track()
+  rospy.spin()
+  
