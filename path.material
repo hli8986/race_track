@@ -8,7 +8,8 @@ material path
       
       texture_unit
       {
-        texture path.png
+        texture path2.png
+        filtering trilinear
       }
     }
   }

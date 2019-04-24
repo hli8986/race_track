@@ -29,6 +29,6 @@
   <run_depend>cv_bridge</run_depend>
 
   <export>
-    <gazebo_ros gazebo_media_path="/home/richard/catkin_ws/src/race_track/race_track/"/>
+    <gazebo_ros gazebo_media_path="/home/hli8/catkin_ws/src/race_track"/>
   </export>
 </package>

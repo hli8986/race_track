@@ -47,7 +47,8 @@
           </geometry>
           <material>
             <script>
-              <uri>file://path.material</uri>
+              <uri>file:///home/hli8/catkin_ws/src/race_track
+/path.material</uri>
               <name>path</name>
             </script>
           </material>
